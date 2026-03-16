@@ -74,6 +74,18 @@ type Content struct {
 	ContentParts []ContentPart `json:"content_parts,omitempty"`
 }
 
+// ToPromptInput converts Content to the format expected by kimi-cli's prompt method
+// kimi-cli expects user_input to be either a string or a list of ContentPart
+func (c Content) ToPromptInput() any {
+	if c.Type == "text" {
+		return c.Text
+	}
+	if len(c.ContentParts) > 0 {
+		return c.ContentParts
+	}
+	return c.Text
+}
+
 // ToolCall represents a tool invocation
 type ToolCall struct {
 	Type     string `json:"type"`
@@ -178,8 +190,9 @@ type PromptResult struct {
 }
 
 // PromptParams represents parameters for a prompt request
+// Note: UserInput should be serialized as either string or []ContentPart
 type PromptParams struct {
-	UserInput Content `json:"user_input"`
+	UserInput any `json:"user_input"`
 }
 
 // InitializeParams represents parameters for initialization

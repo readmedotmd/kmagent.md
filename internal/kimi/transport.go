@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -40,6 +42,9 @@ type Transport struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+
+	// Request ID generator (atomic counter)
+	nextID atomic.Int64
 }
 
 // NewTransport creates a new transport
@@ -135,7 +140,13 @@ func (t *Transport) Connect(ctx context.Context) error {
 	return nil
 }
 
-// SendMessage sends a message to the CLI
+// generateRequestID generates a unique string ID for JSON-RPC requests
+func (t *Transport) generateRequestID() string {
+	return fmt.Sprintf("%d", t.nextID.Add(1))
+}
+
+// SendMessage sends a JSON-RPC request to the CLI (expects a response)
+// Note: kimi-cli expects id to be a STRING, not an integer
 func (t *Transport) SendMessage(ctx context.Context, method string, params any) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -150,14 +161,17 @@ func (t *Transport) SendMessage(ctx context.Context, method string, params any) 
 	default:
 	}
 
+	// Generate unique string ID for this request (kimi-cli requires string IDs)
+	id := t.generateRequestID()
+
 	request := struct {
 		JSONRPC string `json:"jsonrpc"`
-		ID      int    `json:"id"`
+		ID      string `json:"id"`
 		Method  string `json:"method"`
-		Params  any    `json:"params"`
+		Params  any    `json:"params,omitempty"`
 	}{
 		JSONRPC: "2.0",
-		ID:      1,
+		ID:      id,
 		Method:  method,
 		Params:  params,
 	}
@@ -165,6 +179,11 @@ func (t *Transport) SendMessage(ctx context.Context, method string, params any) 
 	data, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	// Debug logging
+	if os.Getenv("KIMI_ADAPTER_DEBUG") != "" {
+		log.Printf("[KIMI_ADAPTER] SEND (request): %s", string(data))
 	}
 
 	t.writeMu.Lock()
@@ -177,9 +196,95 @@ func (t *Transport) SendMessage(ctx context.Context, method string, params any) 
 	return nil
 }
 
-// SendNotification sends a notification (no response expected)
+// SendResponse sends a JSON-RPC response (reply to a request from the server)
+func (t *Transport) SendResponse(ctx context.Context, id string, result any) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	if !t.connected || t.stdin == nil {
+		return fmt.Errorf("transport not connected or stdin closed")
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	response := struct {
+		JSONRPC string `json:"jsonrpc"`
+		ID      string `json:"id"`
+		Result  any    `json:"result"`
+	}{
+		JSONRPC: "2.0",
+		ID:      id,
+		Result:  result,
+	}
+
+	data, err := json.Marshal(response)
+	if err != nil {
+		return fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	// Debug logging
+	if os.Getenv("KIMI_ADAPTER_DEBUG") != "" {
+		log.Printf("[KIMI_ADAPTER] SEND (response): %s", string(data))
+	}
+
+	t.writeMu.Lock()
+	_, err = t.stdin.Write(append(data, '\n'))
+	t.writeMu.Unlock()
+	if err != nil {
+		return fmt.Errorf("failed to write response: %w", err)
+	}
+
+	return nil
+}
+
+// SendNotification sends a JSON-RPC notification (no response expected, no id field)
 func (t *Transport) SendNotification(ctx context.Context, method string, params any) error {
-	return t.SendMessage(ctx, method, params)
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	if !t.connected || t.stdin == nil {
+		return fmt.Errorf("transport not connected or stdin closed")
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	// Notifications MUST NOT have an "id" field per JSON-RPC 2.0 spec
+	notification := struct {
+		JSONRPC string `json:"jsonrpc"`
+		Method  string `json:"method"`
+		Params  any    `json:"params,omitempty"`
+	}{
+		JSONRPC: "2.0",
+		Method:  method,
+		Params:  params,
+	}
+
+	data, err := json.Marshal(notification)
+	if err != nil {
+		return fmt.Errorf("failed to marshal notification: %w", err)
+	}
+
+	// Debug logging
+	if os.Getenv("KIMI_ADAPTER_DEBUG") != "" {
+		log.Printf("[KIMI_ADAPTER] SEND (notification): %s", string(data))
+	}
+
+	t.writeMu.Lock()
+	_, err = t.stdin.Write(append(data, '\n'))
+	t.writeMu.Unlock()
+	if err != nil {
+		return fmt.Errorf("failed to write notification: %w", err)
+	}
+
+	return nil
 }
 
 // ReceiveMessages returns the message channel
@@ -279,9 +384,15 @@ func (t *Transport) handleStdout() {
 			continue
 		}
 
+		// Debug logging
+		if os.Getenv("KIMI_ADAPTER_DEBUG") != "" {
+			log.Printf("[KIMI_ADAPTER] RECV: %s", line)
+		}
+
 		// Parse JSON-RPC message
 		var msg struct {
 			JSONRPC string          `json:"jsonrpc"`
+			ID      json.RawMessage `json:"id"`
 			Method  string          `json:"method"`
 			Params  json.RawMessage `json:"params"`
 			Result  json.RawMessage `json:"result"`
