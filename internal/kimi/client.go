@@ -167,5 +167,3 @@ func (c *clientImpl) ReceiveErrors() <-chan error {
 	}
 	return c.transport.ReceiveErrors()
 }
-
-
