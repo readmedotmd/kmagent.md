@@ -2,7 +2,6 @@ package kimi
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"sync"
@@ -169,82 +168,4 @@ func (c *clientImpl) ReceiveErrors() <-chan error {
 	return c.transport.ReceiveErrors()
 }
 
-// parseEvent parses an event payload into the appropriate type
-func parseEvent(eventType string, payload json.RawMessage) (any, error) {
-	switch eventType {
-	case MessageTypeTurnBegin:
-		var event struct {
-			UserInput Content `json:"user_input"`
-		}
-		if err := json.Unmarshal(payload, &event); err != nil {
-			return nil, err
-		}
-		return event, nil
 
-	case MessageTypeTurnEnd:
-		var event struct {
-			Result PromptResult `json:"result"`
-		}
-		if err := json.Unmarshal(payload, &event); err != nil {
-			return nil, err
-		}
-		return event, nil
-
-	case MessageTypeStepBegin:
-		var event struct {
-			N int `json:"n"`
-		}
-		if err := json.Unmarshal(payload, &event); err != nil {
-			return nil, err
-		}
-		return event, nil
-
-	case MessageTypeContentPart:
-		var event ContentPart
-		if err := json.Unmarshal(payload, &event); err != nil {
-			return nil, err
-		}
-		return event, nil
-
-	case MessageTypeToolCall:
-		var event ToolCall
-		if err := json.Unmarshal(payload, &event); err != nil {
-			return nil, err
-		}
-		return event, nil
-
-	case MessageTypeToolResult:
-		var event ToolResult
-		if err := json.Unmarshal(payload, &event); err != nil {
-			return nil, err
-		}
-		return event, nil
-
-	case MessageTypeStatusUpdate:
-		var event StatusUpdate
-		if err := json.Unmarshal(payload, &event); err != nil {
-			return nil, err
-		}
-		return event, nil
-
-	case MessageTypeApprovalRequest:
-		var event ApprovalRequest
-		if err := json.Unmarshal(payload, &event); err != nil {
-			return nil, err
-		}
-		return event, nil
-
-	case MessageTypeCompactionBegin, MessageTypeCompactionEnd:
-		return struct{}{}, nil
-
-	case MessageTypeSubagentEvent:
-		var event SubagentEvent
-		if err := json.Unmarshal(payload, &event); err != nil {
-			return nil, err
-		}
-		return event, nil
-
-	default:
-		return nil, fmt.Errorf("unknown event type: %s", eventType)
-	}
-}

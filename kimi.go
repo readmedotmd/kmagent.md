@@ -399,7 +399,7 @@ func (k *KimiAdapter) handleExternalToolCall(toolCall kimi.ToolCall, toolRecord 
 		result, err := toolRecord.handler(ctx, []byte(toolCall.Function.Arguments))
 		if err != nil {
 			// Send error result
-			k.client.SendToolResult(ctx, toolCall.ID, fmt.Sprintf("Error: %v", err), true)
+			_ = k.client.SendToolResult(ctx, toolCall.ID, fmt.Sprintf("Error: %v", err), true)
 			return
 		}
 
@@ -413,7 +413,7 @@ func (k *KimiAdapter) handleExternalToolCall(toolCall kimi.ToolCall, toolRecord 
 			output = string(data)
 		}
 
-		k.client.SendToolResult(ctx, toolCall.ID, output, false)
+		_ = k.client.SendToolResult(ctx, toolCall.ID, output, false)
 	}()
 }
 
@@ -555,7 +555,7 @@ func (k *KimiAdapter) Stop() error {
 		k.runCancel()
 	}
 	if k.client != nil {
-		k.client.Disconnect()
+		_ = k.client.Disconnect()
 	}
 	k.setStatus(ai.StatusStopped)
 	k.mu.Unlock()
