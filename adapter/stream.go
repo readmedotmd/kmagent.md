@@ -140,13 +140,13 @@ type TodoItem struct {
 // DisplayBlock represents rich output content from tools.
 type DisplayBlock struct {
 	Type     DisplayBlockType
-	Text     string     // For brief
-	Path     string     // For diff
-	OldText  string     // For diff
-	NewText  string     // For diff
-	Items    []TodoItem // For todo
-	Language string     // For shell
-	Command  string     // For shell
+	Text     string         // For brief
+	Path     string         // For diff
+	OldText  string         // For diff
+	NewText  string         // For diff
+	Items    []TodoItem     // For todo
+	Language string         // For shell
+	Command  string         // For shell
 	Data     map[string]any // For unknown/custom types
 }
 

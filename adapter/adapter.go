@@ -9,7 +9,7 @@ import (
 type AdapterStatus int
 
 const (
-	StatusIdle    AdapterStatus = iota
+	StatusIdle AdapterStatus = iota
 	StatusRunning
 	StatusStopped
 	StatusError

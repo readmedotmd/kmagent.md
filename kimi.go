@@ -32,12 +32,12 @@ var (
 
 // Compile-time interface checks
 var (
-	_ ai.Adapter             = (*KimiAdapter)(nil)
-	_ ai.SessionProvider     = (*KimiAdapter)(nil)
-	_ ai.SessionManager      = (*KimiAdapter)(nil)
-	_ ai.HistoryProvider     = (*KimiAdapter)(nil)
-	_ ai.HistoryClearer      = (*KimiAdapter)(nil)
-	_ ai.PermissionResponder = (*KimiAdapter)(nil)
+	_ ai.Adapter              = (*KimiAdapter)(nil)
+	_ ai.SessionProvider      = (*KimiAdapter)(nil)
+	_ ai.SessionManager       = (*KimiAdapter)(nil)
+	_ ai.HistoryProvider      = (*KimiAdapter)(nil)
+	_ ai.HistoryClearer       = (*KimiAdapter)(nil)
+	_ ai.PermissionResponder  = (*KimiAdapter)(nil)
 	_ ai.ExternalToolRegistry = (*KimiAdapter)(nil)
 )
 
@@ -385,8 +385,8 @@ func (k *KimiAdapter) handleContentPart(part kimi.ContentPart) {
 
 func (k *KimiAdapter) handleExternalToolCall(toolCall kimi.ToolCall, toolRecord externalToolRecord) {
 	k.emit(ai.StreamEvent{
-		Type:      ai.EventExternalToolCall,
-		Timestamp: time.Now(),
+		Type:       ai.EventExternalToolCall,
+		Timestamp:  time.Now(),
 		ToolCallID: toolCall.ID,
 		ToolName:   toolCall.Function.Name,
 	})
@@ -618,7 +618,7 @@ func (k *KimiAdapter) SessionID() string {
 func (k *KimiAdapter) ListSessions(ctx context.Context) ([]ai.SessionInfo, error) {
 	// Kimi stores sessions in ~/.kimi/sessions/{workDirHash}/
 	sessionsDir := filepath.Join(os.Getenv("HOME"), ".kimi", "sessions")
-	
+
 	entries, err := os.ReadDir(sessionsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -632,7 +632,7 @@ func (k *KimiAdapter) ListSessions(ctx context.Context) ([]ai.SessionInfo, error
 		if !entry.IsDir() {
 			continue
 		}
-		
+
 		// Read session metadata
 		metaPath := filepath.Join(sessionsDir, entry.Name(), "meta.json")
 		data, err := os.ReadFile(metaPath)
@@ -664,7 +664,7 @@ func (k *KimiAdapter) ListSessions(ctx context.Context) ([]ai.SessionInfo, error
 func (k *KimiAdapter) ResumeSession(ctx context.Context, sessionID string) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	
+
 	if k.status != ai.StatusRunning {
 		return ErrAdapterNotRunning
 	}
@@ -678,11 +678,11 @@ func (k *KimiAdapter) ResumeSession(ctx context.Context, sessionID string) error
 func (k *KimiAdapter) DeleteSession(ctx context.Context, sessionID string) error {
 	sessionsDir := filepath.Join(os.Getenv("HOME"), ".kimi", "sessions")
 	sessionDir := filepath.Join(sessionsDir, sessionID)
-	
+
 	if err := os.RemoveAll(sessionDir); err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -756,7 +756,7 @@ func (k *KimiAdapter) RegisterTool(ctx context.Context, tool ai.ExternalTool, ha
 func (k *KimiAdapter) UnregisterTool(ctx context.Context, name string) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	
+
 	delete(k.tools, name)
 	log.Printf("kimi: unregistered external tool %s", name)
 	return nil
@@ -846,7 +846,7 @@ func messageToContent(msg ai.Message) kimi.Content {
 			})
 		}
 	}
-	
+
 	if len(parts) == 0 {
 		return kimi.Content{Type: "text", Text: ""}
 	}
@@ -886,13 +886,13 @@ func convertDisplayBlock(block kimi.DisplayBlock) *ai.DisplayBlock {
 		Language: block.Language,
 		Command:  block.Command,
 	}
-	
+
 	for _, item := range block.Items {
 		db.Items = append(db.Items, ai.TodoItem{
 			Title:  item.Title,
 			Status: ai.TodoStatus(item.Status),
 		})
 	}
-	
+
 	return db
 }

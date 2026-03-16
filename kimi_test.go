@@ -185,9 +185,9 @@ func TestEstimateTokens(t *testing.T) {
 		expected int
 	}{
 		{"", 0},
-		{"abcd", 1},                    // 4 chars / 4 = 1
-		{"abcdefghijklmnop", 4},        // 16 chars / 4 = 4
-		{"你好世界", 1},                  // 4 runes / 4 = 1 (Chinese chars are 1 rune each)
+		{"abcd", 1},             // 4 chars / 4 = 1
+		{"abcdefghijklmnop", 4}, // 16 chars / 4 = 4
+		{"你好世界", 1},             // 4 runes / 4 = 1 (Chinese chars are 1 rune each)
 	}
 
 	for _, tc := range tests {

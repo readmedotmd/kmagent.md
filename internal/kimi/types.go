@@ -9,19 +9,19 @@ const ProtocolVersion = "1.3"
 
 // Message types
 const (
-	MessageTypeTurnBegin       = "TurnBegin"
-	MessageTypeTurnEnd         = "TurnEnd"
-	MessageTypeStepBegin       = "StepBegin"
-	MessageTypeStepInterrupted = "StepInterrupted"
-	MessageTypeCompactionBegin = "CompactionBegin"
-	MessageTypeCompactionEnd   = "CompactionEnd"
-	MessageTypeStatusUpdate    = "StatusUpdate"
-	MessageTypeContentPart     = "ContentPart"
-	MessageTypeToolCall        = "ToolCall"
-	MessageTypeToolCallPart    = "ToolCallPart"
-	MessageTypeToolResult      = "ToolResult"
-	MessageTypeSubagentEvent   = "SubagentEvent"
-	MessageTypeApprovalRequest = "ApprovalRequest"
+	MessageTypeTurnBegin        = "TurnBegin"
+	MessageTypeTurnEnd          = "TurnEnd"
+	MessageTypeStepBegin        = "StepBegin"
+	MessageTypeStepInterrupted  = "StepInterrupted"
+	MessageTypeCompactionBegin  = "CompactionBegin"
+	MessageTypeCompactionEnd    = "CompactionEnd"
+	MessageTypeStatusUpdate     = "StatusUpdate"
+	MessageTypeContentPart      = "ContentPart"
+	MessageTypeToolCall         = "ToolCall"
+	MessageTypeToolCallPart     = "ToolCallPart"
+	MessageTypeToolResult       = "ToolResult"
+	MessageTypeSubagentEvent    = "SubagentEvent"
+	MessageTypeApprovalRequest  = "ApprovalRequest"
 	MessageTypeApprovalResponse = "ApprovalResponse"
 )
 
@@ -69,8 +69,8 @@ type ContentPart struct {
 
 // Content represents message content
 type Content struct {
-	Type        string        `json:"type"`
-	Text        string        `json:"text,omitempty"`
+	Type         string        `json:"type"`
+	Text         string        `json:"text,omitempty"`
 	ContentParts []ContentPart `json:"content_parts,omitempty"`
 }
 
