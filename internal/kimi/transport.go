@@ -45,6 +45,11 @@ type Transport struct {
 
 	// Request ID generator (atomic counter)
 	nextID atomic.Int64
+
+	// readyCh is closed when the first stdout message is received
+	readyCh chan struct{}
+	// startErr captures stderr output if the process crashes during startup
+	startErr atomic.Value // stores string
 }
 
 // NewTransport creates a new transport
@@ -133,8 +138,11 @@ func (t *Transport) Connect(ctx context.Context) error {
 	t.msgChan = make(chan Event, channelBufferSize)
 	t.errChan = make(chan error, channelBufferSize)
 
-	t.wg.Add(1)
+	t.readyCh = make(chan struct{})
+
+	t.wg.Add(2)
 	go t.handleStdout()
+	go t.monitorProcess()
 
 	t.connected = true
 	return nil
@@ -372,6 +380,8 @@ func (t *Transport) handleStdout() {
 	buf := make([]byte, maxScanTokenSize)
 	scanner.Buffer(buf, maxScanTokenSize)
 
+	readySignaled := false
+
 	for scanner.Scan() {
 		select {
 		case <-t.ctx.Done():
@@ -382,6 +392,12 @@ func (t *Transport) handleStdout() {
 		line := scanner.Text()
 		if line == "" {
 			continue
+		}
+
+		// Signal readiness on first real output
+		if !readySignaled {
+			close(t.readyCh)
+			readySignaled = true
 		}
 
 		// Debug logging
@@ -451,6 +467,76 @@ func (t *Transport) handleStdout() {
 		case <-t.ctx.Done():
 		}
 	}
+}
+
+// WaitReady blocks until the first stdout message is received from the CLI,
+// indicating that it has started successfully. If the context expires or the
+// process crashes before producing output, an error is returned with any
+// stderr diagnostics that were captured.
+func (t *Transport) WaitReady(ctx context.Context) error {
+	select {
+	case <-t.readyCh:
+		return nil
+	case <-ctx.Done():
+		// Process may have crashed — include stderr in the error
+		if diagRaw := t.startErr.Load(); diagRaw != nil {
+			if diag, ok := diagRaw.(string); ok && diag != "" {
+				return fmt.Errorf("kimi CLI not ready: %w\nstderr: %s", ctx.Err(), diag)
+			}
+		}
+		return fmt.Errorf("kimi CLI not ready: %w", ctx.Err())
+	}
+}
+
+// monitorProcess waits for the CLI process to exit and captures stderr output
+// so that startup failures are surfaced with diagnostic information.
+func (t *Transport) monitorProcess() {
+	defer t.wg.Done()
+
+	if t.cmd == nil {
+		return
+	}
+
+	err := t.cmd.Wait()
+	if err == nil {
+		return
+	}
+
+	// Process crashed — read stderr for diagnostics
+	diag := t.readStderr()
+	if diag != "" {
+		t.startErr.Store(diag)
+	}
+
+	// Push the error onto errChan so consumers see it
+	errMsg := fmt.Sprintf("kimi CLI exited unexpectedly: %v", err)
+	if diag != "" {
+		errMsg = fmt.Sprintf("%s\nstderr: %s", errMsg, diag)
+	}
+	select {
+	case t.errChan <- fmt.Errorf("%s", errMsg):
+	case <-t.ctx.Done():
+	}
+}
+
+// readStderr reads any buffered stderr output from the temporary log file.
+func (t *Transport) readStderr() string {
+	if t.stderr == nil {
+		return ""
+	}
+
+	name := t.stderr.Name()
+	data, err := os.ReadFile(name)
+	if err != nil {
+		return ""
+	}
+
+	s := strings.TrimSpace(string(data))
+	const maxStderrLen = 4096
+	if len(s) > maxStderrLen {
+		s = s[:maxStderrLen] + "... (truncated)"
+	}
+	return s
 }
 
 func (t *Transport) terminateProcess() error {

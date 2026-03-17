@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"sync"
+	"time"
 )
 
 // ClientCapabilities represents capabilities declared by the Wire client during initialization
@@ -89,6 +90,19 @@ func (c *clientImpl) Connect(ctx context.Context) error {
 		c.connected = false
 		c.transport = nil
 		return fmt.Errorf("failed to send initialize request: %w", err)
+	}
+
+	// Wait for the CLI to respond, proving it started successfully.
+	// Without this, a crashed CLI (bad API key, missing config) would not
+	// be detected until the first Prompt() call hits a broken pipe.
+	readyCtx, readyCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer readyCancel()
+
+	if err := c.transport.WaitReady(readyCtx); err != nil {
+		c.transport.Close()
+		c.connected = false
+		c.transport = nil
+		return fmt.Errorf("kimi CLI failed to initialize: %w", err)
 	}
 
 	return nil
