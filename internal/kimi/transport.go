@@ -32,6 +32,8 @@ type Transport struct {
 	mu        sync.RWMutex
 	writeMu   sync.Mutex
 
+	workersWg sync.WaitGroup
+
 	stdin  io.WriteCloser
 	stdout io.ReadCloser
 	stderr *os.File
@@ -140,9 +142,16 @@ func (t *Transport) Connect(ctx context.Context) error {
 
 	t.readyCh = make(chan struct{})
 
-	t.wg.Add(2)
+	t.workersWg.Add(2)
+	t.wg.Add(3)
 	go t.handleStdout()
 	go t.monitorProcess()
+	go func() {
+		defer t.wg.Done()
+		t.workersWg.Wait()
+		close(t.msgChan)
+		close(t.errChan)
+	}()
 
 	t.connected = true
 	return nil
@@ -373,8 +382,7 @@ func (t *Transport) Close() error {
 
 func (t *Transport) handleStdout() {
 	defer t.wg.Done()
-	defer close(t.msgChan)
-	defer close(t.errChan)
+	defer t.workersWg.Done()
 
 	scanner := bufio.NewScanner(t.stdout)
 	buf := make([]byte, maxScanTokenSize)
@@ -492,6 +500,7 @@ func (t *Transport) WaitReady(ctx context.Context) error {
 // so that startup failures are surfaced with diagnostic information.
 func (t *Transport) monitorProcess() {
 	defer t.wg.Done()
+	defer t.workersWg.Done()
 
 	if t.cmd == nil {
 		return
