@@ -447,9 +447,24 @@ func (t *Transport) handleStdout() {
 
 		// Handle events (notifications with method)
 		if msg.Method != "" {
+			eventType := msg.Method
+			eventPayload := msg.Params
+			// Wire protocol v1.5+: events/requests are wrapped in a
+			// {"type":"EventName","payload":{...}} envelope with method="event"
+			// or method="request". Unwrap to get the actual event type.
+			if eventType == "event" || eventType == "request" {
+				var envelope struct {
+					Type    string          `json:"type"`
+					Payload json.RawMessage `json:"payload"`
+				}
+				if err := json.Unmarshal(msg.Params, &envelope); err == nil && envelope.Type != "" {
+					eventType = envelope.Type
+					eventPayload = envelope.Payload
+				}
+			}
 			event := Event{
-				Type:    msg.Method,
-				Payload: msg.Params,
+				Type:    eventType,
+				Payload: eventPayload,
 			}
 			select {
 			case t.msgChan <- event:

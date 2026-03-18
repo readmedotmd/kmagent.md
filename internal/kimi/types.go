@@ -5,7 +5,7 @@ import (
 )
 
 // Protocol version
-const ProtocolVersion = "1.3"
+const ProtocolVersion = "1.5"
 
 // Message types
 const (
